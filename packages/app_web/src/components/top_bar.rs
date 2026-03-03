@@ -1,5 +1,10 @@
 use dioxus::prelude::*;
 
+use crate::services::playlist_service;
+use iptv_core::ParsedPlaylist;
+use wasm_bindgen::JsCast;
+use web_sys::HtmlInputElement;
+
 #[component]
 pub fn TopBar(
     server_url: String,
@@ -14,7 +19,7 @@ pub fn TopBar(
     on_load_url: EventHandler<()>,
     on_load_demo: EventHandler<()>,
     on_logout: EventHandler<()>,
-    on_file_loaded: EventHandler<Result<String, String>>,
+    on_file_loaded: EventHandler<Result<ParsedPlaylist, String>>,
 ) -> Element {
     rsx! {
         header { class: "topbar",
@@ -59,20 +64,49 @@ pub fn TopBar(
                     class: "hidden-file-input",
                     r#type: "file",
                     accept: ".m3u,.m3u8,.txt",
-                    onchange: move |event| {
-                        let files = event.files();
-                        let Some(file) = files.first().cloned() else {
+                    onchange: move |_| {
+                        let window = match web_sys::window() {
+                            Some(w) => w,
+                            None => {
+                                on_file_loaded.call(Err("Janela indisponivel.".to_string()));
+                                return;
+                            }
+                        };
+                        let doc = match window.document() {
+                            Some(d) => d,
+                            None => {
+                                on_file_loaded.call(Err("Documento indisponivel.".to_string()));
+                                return;
+                            }
+                        };
+                        let input_el = match doc.get_element_by_id("playlist-file") {
+                            Some(el) => el,
+                            None => {
+                                on_file_loaded.call(Err("Input de arquivo nao encontrado.".to_string()));
+                                return;
+                            }
+                        };
+                        let input = match input_el.dyn_into::<HtmlInputElement>() {
+                            Ok(i) => i,
+                            Err(_) => {
+                                on_file_loaded.call(Err("Elemento nao e input.".to_string()));
+                                return;
+                            }
+                        };
+                        let Some(files) = input.files() else {
+                            on_file_loaded.call(Err("Nenhum arquivo.".to_string()));
+                            return;
+                        };
+                        let Some(file) = files.item(0) else {
                             on_file_loaded.call(Err("Nenhum arquivo selecionado.".to_string()));
                             return;
                         };
 
                         let on_file_loaded = on_file_loaded.clone();
                         spawn(async move {
-                            match file.read_string().await {
-                                Ok(content) => on_file_loaded.call(Ok(content)),
-                                Err(error) => on_file_loaded.call(Err(format!(
-                                    "Falha ao ler arquivo: {error}"
-                                ))),
+                            match playlist_service::load_playlist_from_file_stream(file).await {
+                                Ok(parsed) => on_file_loaded.call(Ok(parsed)),
+                                Err(error) => on_file_loaded.call(Err(error)),
                             }
                         });
                     }
