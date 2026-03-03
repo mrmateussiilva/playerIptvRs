@@ -1,0 +1,8 @@
+[application]
+name = "player-iptv-rs"
+sub_package = "app_web"
+asset_dir = "packages/app_web/assets"
+
+[web.app]
+title = "FinderBit IPTV MVP"
+
