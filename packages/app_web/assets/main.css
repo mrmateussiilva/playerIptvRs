@@ -346,6 +346,15 @@ img {
   margin-top: 18px;
 }
 
+.load-more-wrap {
+  margin-top: 20px;
+  text-align: center;
+}
+
+.load-more-btn {
+  padding: 10px 24px;
+}
+
 .title-card {
   position: relative;
 }

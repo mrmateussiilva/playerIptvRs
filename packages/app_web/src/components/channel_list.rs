@@ -19,6 +19,9 @@ pub struct ChannelListItem {
 #[component]
 pub fn ChannelList(
     channels: Vec<ChannelListItem>,
+    channels_total: usize,
+    display_limit: usize,
+    on_load_more: EventHandler<()>,
     selected_channel_id: Option<String>,
     search_query: String,
     mode: ListMode,
@@ -28,6 +31,7 @@ pub fn ChannelList(
     on_toggle_favorite: EventHandler<String>,
 ) -> Element {
     let is_empty = channels.is_empty();
+    let has_more = channels_total > display_limit;
     let selected_id = selected_channel_id.clone();
     let all_mode_handler = on_mode_change.clone();
     let favorite_mode_handler = on_mode_change.clone();
@@ -64,7 +68,7 @@ pub fn ChannelList(
             div { class: "empty-state", "Nenhum titulo encontrado para este filtro." }
         } else {
             div { class: "channels-rail",
-                {channels.into_iter().map(|channel| {
+                {channels.iter().map(|channel| {
                     let channel_id = channel.id.clone();
                     let select_id = channel.id.clone();
                     let favorite_id = channel.id.clone();
@@ -109,6 +113,15 @@ pub fn ChannelList(
                         }
                     }
                 })}
+                if has_more {
+                    div { class: "load-more-wrap",
+                        button {
+                            class: "primary-btn load-more-btn",
+                            onclick: move |_| on_load_more.call(()),
+                            "Mostrar mais ({channels.len()} de {channels_total} exibidos)"
+                        }
+                    }
+                }
             }
         }
         div { class: "recent-note", "Continuar exibe os ultimos 10 titulos reproduzidos." }

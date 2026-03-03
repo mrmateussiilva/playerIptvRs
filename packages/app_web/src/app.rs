@@ -12,6 +12,7 @@ const VIDEO_ID: &str = "iptv-video";
 const APP_STYLES: &str = include_str!("../assets/main.css");
 const DEFAULT_LOGIN_USER: &str = "mateus";
 const DEFAULT_LOGIN_PASSWORD: &str = "3010";
+const CHANNELS_PAGE_SIZE: usize = 200;
 
 #[derive(Clone, PartialEq)]
 enum PlayerState {
@@ -40,6 +41,7 @@ pub fn App() -> Element {
     let mut selected_group = use_signal(|| "Todos".to_string());
     let mut search_query = use_signal(String::new);
     let mut list_mode = use_signal(|| ListMode::All);
+    let mut display_limit = use_signal(|| CHANNELS_PAGE_SIZE);
     let mut current_channel = use_signal(|| None::<Channel>);
     let mut player_state = use_signal(|| PlayerState::Idle);
     let mut login_profile = use_signal(move || restored_session.profile_name.clone());
@@ -61,6 +63,12 @@ pub fn App() -> Element {
         &search_query(),
         &list_mode(),
     );
+    let channels_total = channels.len();
+    let channels_displayed: Vec<_> = channels
+        .iter()
+        .take(display_limit())
+        .cloned()
+        .collect();
 
     let status_text = format!(
         "carregado {} canais / {} grupos",
@@ -180,27 +188,26 @@ pub fn App() -> Element {
                         let mut playlist = playlist;
                         let mut selected_group = selected_group;
                         let mut search_query = search_query;
+                        let mut display_limit = display_limit;
 
                         spawn(async move {
-                            match playlist_service::fetch_playlist_text(&request_url).await {
-                                Ok(content) => match parse_playlist(&content) {
-                                    Ok(parsed) => {
-                                        if let Err(error) = playlist_service::save_playlist(&parsed) {
-                                            ui_message.set(format!(
-                                                "Playlist carregada, mas falhou ao persistir: {error}"
-                                            ));
-                                        } else {
-                                            ui_message.set(format!(
-                                                "Playlist remota carregada com {} canais.",
-                                                parsed.channels.len()
-                                            ));
-                                        }
-                                        playlist.set(parsed);
-                                        selected_group.set("Todos".to_string());
-                                        search_query.set(String::new());
+                            match playlist_service::fetch_playlist_stream(&request_url).await {
+                                Ok(parsed) => {
+                                    if let Err(error) = playlist_service::save_playlist(&parsed) {
+                                        ui_message.set(format!(
+                                            "Playlist carregada, mas falhou ao persistir: {error}"
+                                        ));
+                                    } else {
+                                        ui_message.set(format!(
+                                            "Playlist remota carregada com {} canais.",
+                                            parsed.channels.len()
+                                        ));
                                     }
-                                    Err(error) => ui_message.set(error),
-                                },
+                                    playlist.set(parsed);
+                                    display_limit.set(CHANNELS_PAGE_SIZE);
+                                    selected_group.set("Todos".to_string());
+                                    search_query.set(String::new());
+                                }
                                 Err(error) => ui_message.set(error),
                             }
                         });
@@ -219,6 +226,7 @@ pub fn App() -> Element {
                                     ));
                                 }
                                 playlist.set(parsed);
+                                display_limit.set(CHANNELS_PAGE_SIZE);
                                 selected_group.set("Todos".to_string());
                                 search_query.set(String::new());
                             }
@@ -235,25 +243,23 @@ pub fn App() -> Element {
                             },
                         );
                     },
-                    on_file_loaded: move |result: Result<String, String>| match result {
-                        Ok(content) => match parse_playlist(&content) {
-                            Ok(parsed) => {
-                                if let Err(error) = playlist_service::save_playlist(&parsed) {
-                                    ui_message.set(format!(
-                                        "Playlist do arquivo carregada, mas nao foi salva: {error}"
-                                    ));
-                                } else {
-                                    ui_message.set(format!(
-                                        "Playlist do arquivo carregada com {} canais.",
-                                        parsed.channels.len()
-                                    ));
-                                }
-                                playlist.set(parsed);
-                                selected_group.set("Todos".to_string());
-                                search_query.set(String::new());
+                    on_file_loaded: move |result: Result<ParsedPlaylist, String>| match result {
+                        Ok(parsed) => {
+                            if let Err(error) = playlist_service::save_playlist(&parsed) {
+                                ui_message.set(format!(
+                                    "Playlist do arquivo carregada, mas nao foi salva: {error}"
+                                ));
+                            } else {
+                                ui_message.set(format!(
+                                    "Playlist do arquivo carregada com {} canais.",
+                                    parsed.channels.len()
+                                ));
                             }
-                            Err(error) => ui_message.set(error),
-                        },
+                            playlist.set(parsed);
+                            display_limit.set(CHANNELS_PAGE_SIZE);
+                            selected_group.set("Todos".to_string());
+                            search_query.set(String::new());
+                        }
                         Err(error) => ui_message.set(error),
                     },
                 }
@@ -343,7 +349,12 @@ pub fn App() -> Element {
                         div { class: "catalog-layout",
                             section { class: "panel",
                                 ChannelList {
-                                    channels,
+                                    channels: channels_displayed.clone(),
+                                    channels_total: channels_total,
+                                    display_limit: display_limit(),
+                                    on_load_more: move |_| {
+                                        display_limit.set((display_limit() + CHANNELS_PAGE_SIZE).min(channels_total));
+                                    },
                                     selected_channel_id: current_channel()
                                         .as_ref()
                                         .map(|channel| channel.id.clone()),

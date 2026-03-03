@@ -16,9 +16,11 @@ dependencies = [
  "dioxus-signals",
  "gloo-net",
  "iptv_core",
+ "js-sys",
  "serde",
  "serde_json",
  "wasm-bindgen",
+ "wasm-bindgen-futures",
  "web-sys",
 ]
 
