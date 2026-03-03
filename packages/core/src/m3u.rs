@@ -3,29 +3,49 @@ use std::hash::{Hash, Hasher};
 
 use crate::models::{Channel, ParsedPlaylist};
 
-pub fn parse_playlist(input: &str) -> Result<ParsedPlaylist, String> {
-    let mut channels = Vec::new();
-    let mut groups = Vec::new();
-    let mut seen_groups = HashSet::new();
-    let mut pending = None;
-    let mut saw_header = false;
+/// Parser stateful para M3U que processa uma linha por vez (streaming).
+pub struct M3uStreamParser {
+    saw_header: bool,
+    pending: Option<PendingChannel>,
+    channels: Vec<Channel>,
+    groups: Vec<String>,
+    seen_groups: HashSet<String>,
+}
 
-    for raw_line in input.lines() {
-        let line = raw_line.trim();
+impl Default for M3uStreamParser {
+    fn default() -> Self {
+        Self {
+            saw_header: false,
+            pending: None,
+            channels: Vec::new(),
+            groups: Vec::new(),
+            seen_groups: HashSet::new(),
+        }
+    }
+}
+
+impl M3uStreamParser {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Processa uma linha do M3U (linha completa, sem newline).
+    pub fn feed_line(&mut self, line: &str) {
+        let line = line.trim();
 
         if line.is_empty() {
-            continue;
+            return;
         }
 
         if line == "#EXTM3U" {
-            saw_header = true;
-            continue;
+            self.saw_header = true;
+            return;
         }
 
         if let Some(rest) = line.strip_prefix("#EXTINF:") {
             let (meta, name) = split_extinf(rest);
             let attrs = parse_attributes(meta);
-            pending = Some(PendingChannel {
+            self.pending = Some(PendingChannel {
                 name: name.to_string(),
                 group: attrs
                     .get("group-title")
@@ -34,40 +54,54 @@ pub fn parse_playlist(input: &str) -> Result<ParsedPlaylist, String> {
                 logo: attrs.get("tvg-logo").cloned(),
                 tvg_id: attrs.get("tvg-id").cloned(),
             });
-            continue;
+            return;
         }
 
         if line.starts_with('#') {
-            continue;
+            return;
         }
 
-        if let Some(info) = pending.take() {
+        if let Some(info) = self.pending.take() {
             let channel = Channel {
                 id: channel_id(&info.name, line),
                 name: info.name,
-                group: info.group,
+                group: info.group.clone(),
                 logo: info.logo,
                 url: line.to_string(),
                 tvg_id: info.tvg_id,
             };
 
-            if seen_groups.insert(channel.group.clone()) {
-                groups.push(channel.group.clone());
+            if self.seen_groups.insert(channel.group.clone()) {
+                self.groups.push(channel.group.clone());
             }
 
-            channels.push(channel);
+            self.channels.push(channel);
         }
     }
 
-    if !saw_header {
-        return Err("Playlist M3U invalida: cabecalho #EXTM3U ausente.".to_string());
-    }
+    /// Finaliza o parse e retorna a playlist ou erro de validação.
+    pub fn finish(self) -> Result<ParsedPlaylist, String> {
+        if !self.saw_header {
+            return Err("Playlist M3U invalida: cabecalho #EXTM3U ausente.".to_string());
+        }
 
-    if channels.is_empty() {
-        return Err("Nenhum canal encontrado na playlist.".to_string());
-    }
+        if self.channels.is_empty() {
+            return Err("Nenhum canal encontrado na playlist.".to_string());
+        }
 
-    Ok(ParsedPlaylist { channels, groups })
+        Ok(ParsedPlaylist {
+            channels: self.channels,
+            groups: self.groups,
+        })
+    }
+}
+
+pub fn parse_playlist(input: &str) -> Result<ParsedPlaylist, String> {
+    let mut parser = M3uStreamParser::new();
+    for raw_line in input.lines() {
+        parser.feed_line(raw_line);
+    }
+    parser.finish()
 }
 
 #[derive(Debug)]
@@ -165,7 +199,26 @@ fn channel_id(name: &str, url: &str) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::parse_playlist;
+    use super::{parse_playlist, M3uStreamParser};
+
+    #[test]
+    fn stream_parser_matches_parse_playlist() {
+        let input = r#"#EXTM3U
+#EXTINF:-1 tvg-id="news-1" tvg-logo="https://img/news.png" group-title="Noticias",Canal News
+https://example.com/news.m3u8
+#EXTINF:-1 group-title="Esportes",Canal Sport
+https://example.com/sport.m3u8
+"#;
+        let from_parse = parse_playlist(input).expect("parse_playlist should succeed");
+        let mut parser = M3uStreamParser::new();
+        for line in input.lines() {
+            parser.feed_line(line);
+        }
+        let from_stream = parser.finish().expect("stream parser should succeed");
+        assert_eq!(from_parse.channels.len(), from_stream.channels.len());
+        assert_eq!(from_parse.groups, from_stream.groups);
+        assert_eq!(from_parse.channels[0].name, from_stream.channels[0].name);
+    }
 
     #[test]
     fn parses_channels_and_groups() {
