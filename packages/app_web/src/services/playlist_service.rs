@@ -1,8 +1,12 @@
 use gloo_net::http::Request;
 use iptv_core::storage::PlaylistStorage;
-use iptv_core::ParsedPlaylist;
+use iptv_core::{M3uStreamParser, ParsedPlaylist};
+use js_sys::{Reflect, Uint8Array};
 use serde::{Deserialize, Serialize};
 use wasm_bindgen::prelude::*;
+use wasm_bindgen_futures::JsFuture;
+use web_sys::{ReadableStream, ReadableStreamDefaultReader, TextDecoder};
+use wasm_bindgen::JsCast;
 
 const PLAYLIST_KEY: &str = "finderbit.playlist";
 const FAVORITES_KEY: &str = "finderbit.favorites";
@@ -97,6 +101,104 @@ pub async fn fetch_playlist_text(url: &str) -> Result<String, String> {
         .text()
         .await
         .map_err(|error| format!("Falha ao ler resposta da playlist: {error}"))
+}
+
+/// Lê um ReadableStream e parseia o conteúdo como M3U em chunks (sem carregar tudo na memória).
+pub async fn parse_readable_stream_into_playlist(
+    body: ReadableStream,
+) -> Result<ParsedPlaylist, String> {
+    let reader = ReadableStreamDefaultReader::new(&body)
+        .map_err(|_| "Falha ao obter leitor do stream.".to_string())?;
+
+    let decoder = TextDecoder::new().map_err(|_| "Falha ao criar TextDecoder.")?;
+
+    let mut parser = M3uStreamParser::new();
+    let mut line_buffer = String::new();
+
+    loop {
+        let read_promise = reader.read();
+        let read_result = JsFuture::from(read_promise)
+            .await
+            .map_err(|e| format!("Falha ao ler chunk do stream: {e:?}"))?;
+
+        let done = Reflect::get(&read_result, &JsValue::from_str("done"))
+            .ok()
+            .and_then(|v| v.as_bool())
+            .unwrap_or(true);
+
+        if done {
+            break;
+        }
+
+        let value_js = Reflect::get(&read_result, &JsValue::from_str("value"))
+            .map_err(|_| "Chunk sem campo 'value'.")?;
+
+        if value_js.is_undefined() || value_js.is_null() {
+            continue;
+        }
+
+        let chunk = Uint8Array::new(&value_js);
+        let decoded = decoder
+            .decode_with_buffer_source(&chunk)
+            .map_err(|_| "Falha ao decodificar chunk (UTF-8).")?;
+
+        line_buffer.push_str(&decoded);
+
+        while let Some(newline_pos) = line_buffer.find('\n') {
+            let line = line_buffer[..newline_pos].trim_end_matches('\r');
+            if !line.is_empty() {
+                parser.feed_line(line);
+            }
+            line_buffer.replace_range(..newline_pos + 1, "");
+        }
+    }
+
+    if !line_buffer.trim().is_empty() {
+        parser.feed_line(line_buffer.trim_end_matches('\r'));
+    }
+
+    parser.finish()
+}
+
+/// Carrega a playlist por URL lendo o corpo em stream (chunks), sem carregar
+/// todo o conteúdo na memória. Suporta playlists muito grandes (ex.: centenas de MB).
+pub async fn fetch_playlist_stream(url: &str) -> Result<ParsedPlaylist, String> {
+    let response = Request::get(url)
+        .send()
+        .await
+        .map_err(|e| format!("Falha ao buscar playlist: {e}"))?;
+
+    if !response.ok() {
+        return Err(format!(
+            "Falha ao buscar playlist: status HTTP {}",
+            response.status()
+        ));
+    }
+
+    let body = response
+        .body()
+        .ok_or_else(|| "Resposta sem corpo (body null).".to_string())?;
+
+    parse_readable_stream_into_playlist(body).await
+}
+
+/// Carrega a playlist a partir de um arquivo local lendo em stream (file.stream()),
+/// sem carregar o arquivo inteiro na memória.
+pub async fn load_playlist_from_file_stream(file: web_sys::File) -> Result<ParsedPlaylist, String> {
+    let file_js: &JsValue = file.as_ref();
+    let stream_method = Reflect::get(file_js, &JsValue::from_str("stream"))
+        .map_err(|_| "Arquivo sem método stream().")?;
+    let stream_fn = stream_method
+        .dyn_ref::<js_sys::Function>()
+        .ok_or_else(|| "stream não é uma função.".to_string())?;
+    let stream_value = stream_fn
+        .call0(file_js)
+        .map_err(|e| format!("Falha ao chamar file.stream(): {e:?}"))?;
+    let stream: ReadableStream = stream_value
+        .dyn_into()
+        .map_err(|_| "file.stream() não retornou ReadableStream.")?;
+
+    parse_readable_stream_into_playlist(stream).await
 }
 
 pub fn build_playlist_url(server_url: &str, username: &str, password: &str) -> Result<String, String> {
