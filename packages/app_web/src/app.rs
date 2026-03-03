@@ -1,10 +1,13 @@
 use dioxus::prelude::*;
+use dioxus::hooks::use_signal;
+use dioxus_signals::WritableExt;
 use iptv_core::{parse_playlist, Channel, ParsedPlaylist};
 
 use crate::components::{ChannelList, ChannelListItem, ListMode, Player, SidebarGroups, TopBar};
 use crate::services::playlist_service;
 
 const VIDEO_ID: &str = "iptv-video";
+const APP_STYLES: &str = include_str!("../assets/main.css");
 
 #[derive(Clone, PartialEq)]
 enum PlayerState {
@@ -56,6 +59,7 @@ pub fn App() -> Element {
 
     rsx! {
         div { class: "app-shell",
+            style { "{APP_STYLES}" }
             div { class: "app-frame",
                 TopBar {
                     playlist_url: playlist_url(),
@@ -122,7 +126,7 @@ pub fn App() -> Element {
                             Err(error) => ui_message.set(error),
                         }
                     },
-                    on_file_loaded: move |result| match result {
+                    on_file_loaded: move |result: Result<String, String>| match result {
                         Ok(content) => match parse_playlist(&content) {
                             Ok(parsed) => {
                                 if let Err(error) = playlist_service::save_playlist(&parsed) {
@@ -190,7 +194,7 @@ pub fn App() -> Element {
                                 }
                                 recents.set(updated);
                             },
-                            on_toggle_favorite: move |channel_id| {
+                            on_toggle_favorite: move |channel_id: String| {
                                 let updated = toggle_favorite(&favorites(), &channel_id);
                                 match playlist_service::save_favorites(&updated) {
                                     Ok(()) => favorites.set(updated),

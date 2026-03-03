@@ -7,28 +7,6 @@ pub fn SidebarGroups(
     on_select: EventHandler<String>,
 ) -> Element {
     let group_on_select = on_select.clone();
-    let group_buttons = groups
-        .into_iter()
-        .map(|group| {
-            let class_name = if selected_group == group {
-                "group-btn active"
-            } else {
-                "group-btn"
-            };
-            let button_key = group.clone();
-            let group_for_click = group.clone();
-            let click_handler = group_on_select.clone();
-
-            rsx! {
-                button {
-                    key: "{button_key}",
-                    class: class_name,
-                    onclick: move |_| click_handler.call(group_for_click.clone()),
-                    "{group}"
-                }
-            }
-        })
-        .collect::<Vec<_>>();
 
     rsx! {
         aside { class: "panel",
@@ -40,7 +18,25 @@ pub fn SidebarGroups(
                     onclick: move |_| on_select.call("Todos".to_string()),
                     "Todos"
                 }
-                {group_buttons}
+                {groups.into_iter().map(|group| {
+                    let class_name = if selected_group == group {
+                        "group-btn active"
+                    } else {
+                        "group-btn"
+                    };
+                    let button_key = group.clone();
+                    let group_for_click = group.clone();
+                    let click_handler = group_on_select.clone();
+
+                    rsx! {
+                        button {
+                            key: "{button_key}",
+                            class: class_name,
+                            onclick: move |_| click_handler.call(group_for_click.clone()),
+                            "{group}"
+                        }
+                    }
+                })}
             }
         }
     }
