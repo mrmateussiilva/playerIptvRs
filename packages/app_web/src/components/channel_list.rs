@@ -32,52 +32,6 @@ pub fn ChannelList(
     let all_mode_handler = on_mode_change.clone();
     let favorite_mode_handler = on_mode_change.clone();
     let recent_mode_handler = on_mode_change.clone();
-    let rows = channels
-        .into_iter()
-        .map(|channel| {
-            let channel_id = channel.id.clone();
-            let select_id = channel.id.clone();
-            let favorite_id = channel.id.clone();
-            let channel_name = channel.name.clone();
-            let channel_group = channel.group.clone();
-            let channel_logo = channel.logo.clone();
-            let is_selected = selected_id.as_deref() == Some(channel_id.as_str());
-            let favorite_class = if channel.is_favorite {
-                "favorite-btn active"
-            } else {
-                "favorite-btn"
-            };
-            let select_handler = on_select_channel.clone();
-            let favorite_handler = on_toggle_favorite.clone();
-
-            rsx! {
-                div { key: "{channel_id}", class: "channel-row",
-                    button {
-                        class: if is_selected { "channel-btn active" } else { "channel-btn" },
-                        onclick: move |_| select_handler.call(select_id.clone()),
-                        if let Some(logo) = channel_logo.clone() {
-                            img {
-                                class: "channel-logo",
-                                src: logo,
-                                alt: "Logo do canal",
-                            }
-                        } else {
-                            div { class: "channel-logo-placeholder", "TV" }
-                        }
-                        div {
-                            div { class: "channel-name", "{channel_name}" }
-                            div { class: "channel-group", "{channel_group}" }
-                        }
-                    }
-                    button {
-                        class: favorite_class,
-                        onclick: move |_| favorite_handler.call(favorite_id.clone()),
-                        if channel.is_favorite { "★" } else { "☆" }
-                    }
-                }
-            }
-        })
-        .collect::<Vec<_>>();
 
     rsx! {
         h2 { "Canais" }
@@ -110,7 +64,51 @@ pub fn ChannelList(
             div { class: "empty-state", "Nenhum canal encontrado para este filtro." }
         } else {
             div { class: "channels-list",
-                {rows}
+                {channels.into_iter().map(|channel| {
+                    let channel_id = channel.id.clone();
+                    let select_id = channel.id.clone();
+                    let favorite_id = channel.id.clone();
+                    let channel_name = channel.name.clone();
+                    let channel_group = channel.group.clone();
+                    let channel_logo = channel.logo.clone();
+                    let is_selected = selected_id.as_deref() == Some(channel_id.as_str());
+                    let select_handler = on_select_channel.clone();
+                    let favorite_handler = on_toggle_favorite.clone();
+
+                    rsx! {
+                        div { key: "{channel_id}", class: "channel-row",
+                            button {
+                                class: if channel.is_favorite {
+                                    "favorite-btn active floating"
+                                } else {
+                                    "favorite-btn floating"
+                                },
+                                onclick: move |_| favorite_handler.call(favorite_id.clone()),
+                                if channel.is_favorite { "★" } else { "☆" }
+                            }
+                            button {
+                                class: if is_selected { "channel-btn active" } else { "channel-btn" },
+                                onclick: move |_| select_handler.call(select_id.clone()),
+                                div { class: "channel-card-top",
+                                    if let Some(logo) = channel_logo.clone() {
+                                        img {
+                                            class: "channel-logo",
+                                            src: logo,
+                                            alt: "Logo do canal",
+                                        }
+                                    } else {
+                                        div { class: "channel-logo-placeholder", "TV" }
+                                    }
+                                    span { class: "channel-pill", "{channel_group}" }
+                                }
+                                div { class: "channel-card-body",
+                                    div { class: "channel-name", "{channel_name}" }
+                                    div { class: "channel-meta", "Abrir stream ao vivo" }
+                                }
+                            }
+                        }
+                    }
+                })}
             }
         }
         div { class: "recent-note", "Recentes mantem os ultimos 10 canais tocados." }
