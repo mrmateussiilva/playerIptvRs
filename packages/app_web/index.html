@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>FinderBit IPTV MVP</title>
+    <link rel="stylesheet" href="/assets/main.css" />
+    <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
+    <script>
+      (function () {
+        const players = new Map();
+        const errors = new Map();
+
+        function cleanup(videoId) {
+          const current = players.get(videoId);
+          if (current) {
+            current.destroy();
+            players.delete(videoId);
+          }
+        }
+
+        function setError(videoId, message) {
+          errors.set(videoId, message);
+          const video = document.getElementById(videoId);
+          if (video) {
+            video.dispatchEvent(new Event("error"));
+          }
+        }
+
+        window.IptvPlayer = {
+          play(videoId, url) {
+            const video = document.getElementById(videoId);
+            if (!video) {
+              throw new Error("Elemento de video nao encontrado.");
+            }
+
+            cleanup(videoId);
+            errors.delete(videoId);
+            video.removeAttribute("src");
+            video.load();
+
+            const nativeHls = video.canPlayType("application/vnd.apple.mpegurl");
+            if (nativeHls) {
+              video.src = url;
+              video.play().catch(() => {});
+              return;
+            }
+
+            if (window.Hls && window.Hls.isSupported()) {
+              const hls = new window.Hls({
+                enableWorker: true,
+                lowLatencyMode: true,
+              });
+
+              hls.on(window.Hls.Events.ERROR, function (_, data) {
+                if (data && data.fatal) {
+                  const details = data.details || "Erro HLS fatal";
+                  setError(videoId, details);
+                  cleanup(videoId);
+                }
+              });
+
+              hls.attachMedia(video);
+              hls.on(window.Hls.Events.MEDIA_ATTACHED, function () {
+                hls.loadSource(url);
+                video.play().catch(() => {});
+              });
+
+              players.set(videoId, hls);
+              return;
+            }
+
+            throw new Error("HLS nao suportado neste navegador.");
+          },
+          stop(videoId) {
+            cleanup(videoId);
+            errors.delete(videoId);
+            const video = document.getElementById(videoId);
+            if (!video) {
+              return;
+            }
+            video.pause();
+            video.removeAttribute("src");
+            video.load();
+          },
+          lastError(videoId) {
+            return errors.get(videoId) || "";
+          },
+        };
+      })();
+    </script>
+  </head>
+  <body>
+    <div id="main"></div>
+  </body>
+</html>
