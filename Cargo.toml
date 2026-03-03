@@ -2,7 +2,9 @@
 resolver = "2"
 members = [
     "packages/core",
+    "packages/m3u",
     "packages/app_web",
+    "packages/app_desktop",
 ]
 default-members = ["packages/app_web"]
 
