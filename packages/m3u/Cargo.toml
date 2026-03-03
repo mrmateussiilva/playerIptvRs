@@ -1,0 +1,12 @@
+[package]
+name = "iptv_m3u"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Streaming M3U/M3U8 loader with incremental parsing (file + URL with auth)"
+
+[dependencies]
+tokio = { version = "1", features = ["sync", "fs", "io-util", "rt"] }
+reqwest = { version = "0.12", features = ["stream", "json"] }
+futures-util = "0.3"
+serde = { version = "1", features = ["derive"] }
