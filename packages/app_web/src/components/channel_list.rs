@@ -34,36 +34,36 @@ pub fn ChannelList(
     let recent_mode_handler = on_mode_change.clone();
 
     rsx! {
-        h2 { "Canais" }
-        p { class: "panel-subtitle", "Lista filtrada por grupo, busca e favoritos." }
+        h2 { "Catalogo" }
+        p { class: "panel-subtitle", "Titulos organizados por filtros, favoritos e historico recente." }
         div { class: "list-toolbar",
             button {
                 class: if mode == ListMode::All { "tab-btn active" } else { "tab-btn" },
                 onclick: move |_| all_mode_handler.call(ListMode::All),
-                "Todos"
+                "Descobrir"
             }
             button {
                 class: if mode == ListMode::Favorites { "tab-btn active" } else { "tab-btn" },
                 onclick: move |_| favorite_mode_handler.call(ListMode::Favorites),
-                "Favoritos"
+                "Minha lista"
             }
             button {
                 class: if mode == ListMode::Recent { "tab-btn active" } else { "tab-btn" },
                 onclick: move |_| recent_mode_handler.call(ListMode::Recent),
-                "Recentes"
+                "Continuar"
             }
         }
         input {
             class: "search-input",
             r#type: "search",
-            placeholder: "Buscar canal",
+            placeholder: "Buscar titulo ou canal",
             value: search_query,
             oninput: move |event| on_search_change.call(event.value()),
         }
         if is_empty {
-            div { class: "empty-state", "Nenhum canal encontrado para este filtro." }
+            div { class: "empty-state", "Nenhum titulo encontrado para este filtro." }
         } else {
-            div { class: "channels-list",
+            div { class: "channels-rail",
                 {channels.into_iter().map(|channel| {
                     let channel_id = channel.id.clone();
                     let select_id = channel.id.clone();
@@ -76,7 +76,7 @@ pub fn ChannelList(
                     let favorite_handler = on_toggle_favorite.clone();
 
                     rsx! {
-                        div { key: "{channel_id}", class: "channel-row",
+                        article { key: "{channel_id}", class: "title-card",
                             button {
                                 class: if channel.is_favorite {
                                     "favorite-btn active floating"
@@ -89,7 +89,7 @@ pub fn ChannelList(
                             button {
                                 class: if is_selected { "channel-btn active" } else { "channel-btn" },
                                 onclick: move |_| select_handler.call(select_id.clone()),
-                                div { class: "channel-card-top",
+                                div { class: "title-art",
                                     if let Some(logo) = channel_logo.clone() {
                                         img {
                                             class: "channel-logo",
@@ -97,13 +97,13 @@ pub fn ChannelList(
                                             alt: "Logo do canal",
                                         }
                                     } else {
-                                        div { class: "channel-logo-placeholder", "TV" }
+                                        div { class: "channel-logo-placeholder", "PLAY" }
                                     }
                                     span { class: "channel-pill", "{channel_group}" }
                                 }
                                 div { class: "channel-card-body",
                                     div { class: "channel-name", "{channel_name}" }
-                                    div { class: "channel-meta", "Abrir stream ao vivo" }
+                                    div { class: "channel-meta", "Assistir agora" }
                                 }
                             }
                         }
@@ -111,6 +111,6 @@ pub fn ChannelList(
                 })}
             }
         }
-        div { class: "recent-note", "Recentes mantem os ultimos 10 canais tocados." }
+        div { class: "recent-note", "Continuar exibe os ultimos 10 titulos reproduzidos." }
     }
 }

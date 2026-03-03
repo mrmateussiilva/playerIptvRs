@@ -9,14 +9,14 @@ pub fn SidebarGroups(
     let group_on_select = on_select.clone();
 
     rsx! {
-        aside { class: "panel",
-            h2 { "Grupos" }
-            p { class: "panel-subtitle", "Filtre rapidamente os canais por categoria." }
+        aside { class: "genre-panel",
+            h2 { "Generos" }
+            p { class: "panel-subtitle", "Navegue como um catalogo por categoria." }
             div { class: "groups-list",
                 button {
                     class: if selected_group == "Todos" { "group-btn active" } else { "group-btn" },
                     onclick: move |_| on_select.call("Todos".to_string()),
-                    "Todos"
+                    "Inicio"
                 }
                 {groups.into_iter().map(|group| {
                     let class_name = if selected_group == group {

@@ -2,27 +2,47 @@ use dioxus::prelude::*;
 
 #[component]
 pub fn TopBar(
-    playlist_url: String,
+    server_url: String,
+    username: String,
+    password: String,
+    profile_name: String,
     status_text: String,
     helper_message: String,
-    on_url_change: EventHandler<String>,
+    on_server_change: EventHandler<String>,
+    on_username_change: EventHandler<String>,
+    on_password_change: EventHandler<String>,
     on_load_url: EventHandler<()>,
     on_load_demo: EventHandler<()>,
+    on_logout: EventHandler<()>,
     on_file_loaded: EventHandler<Result<String, String>>,
 ) -> Element {
     rsx! {
         header { class: "topbar",
             div { class: "brand",
-                h1 { "FinderBit IPTV MVP" }
+                h1 { "FinderBit Stream" }
                 p { "{helper_message}" }
             }
             div { class: "topbar-actions",
                 input {
-                    class: "url-input",
-                    r#type: "url",
-                    placeholder: "URL da playlist M3U",
-                    value: playlist_url,
-                    oninput: move |event| on_url_change.call(event.value()),
+                    class: "topbar-input topbar-input-url",
+                    r#type: "text",
+                    placeholder: "URL da playlist ou endereco do servidor",
+                    value: server_url,
+                    oninput: move |event| on_server_change.call(event.value()),
+                }
+                input {
+                    class: "topbar-input topbar-input-credential",
+                    r#type: "text",
+                    placeholder: "Usuario",
+                    value: username,
+                    oninput: move |event| on_username_change.call(event.value()),
+                }
+                input {
+                    class: "topbar-input topbar-input-credential",
+                    r#type: "password",
+                    placeholder: "Senha",
+                    value: password,
+                    oninput: move |event| on_password_change.call(event.value()),
                 }
                 button {
                     class: "primary-btn",
@@ -60,10 +80,21 @@ pub fn TopBar(
                 button {
                     class: "secondary-btn",
                     onclick: move |_| on_load_demo.call(()),
-                    "Carregar playlist demo"
+                    "Demo"
                 }
             }
-            div { class: "status-pill", "{status_text}" }
+            div { class: "topbar-meta",
+                div { class: "status-pill", "{status_text}" }
+                div { class: "profile-chip",
+                    span { class: "profile-avatar", "{profile_name.chars().next().unwrap_or('F')}" }
+                    span { class: "profile-name", "{profile_name}" }
+                }
+                button {
+                    class: "ghost-btn",
+                    onclick: move |_| on_logout.call(()),
+                    "Sair"
+                }
+            }
         }
     }
 }
