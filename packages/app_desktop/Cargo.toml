@@ -1,0 +1,19 @@
+[package]
+name = "app_desktop"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Player IPTV desktop com listas M3U em streaming"
+
+[[bin]]
+name = "app_desktop"
+path = "src/main.rs"
+
+[dependencies]
+dioxus = { version = "0.7", default-features = false, features = ["macro", "html", "hooks", "desktop"] }
+dioxus-desktop = { version = "0.7", features = ["tokio_runtime"] }
+iptv_m3u = { path = "../m3u" }
+rfd = "0.15"
+tokio = { version = "1", features = ["sync", "rt-multi-thread"] }
+serde.workspace = true
+serde_json.workspace = true
